@@ -3289,6 +3289,7 @@ int clTecplot::read_datasection(FILE *fileptr,clTecplot_zone *currentzone)
 	if (!read_binentry_int(fileptr,idummy)) return 0;
 	if (idummy!=-1) fatal_err("Connectivities sharing not yet implemented");
 	num_var=_num_var-currentzone->_num_varsharing;
+	/*  Varmin, varmax */
 	if (_version==112) {
 		currentzone->_varmin.allocate(_num_var);
 		currentzone->_varmax.allocate(_num_var);
@@ -3301,6 +3302,7 @@ int clTecplot::read_datasection(FILE *fileptr,clTecplot_zone *currentzone)
 			if (read_bin_debug) fprintf(stdout,"Varmax[%d]=%f\n",n_var,currentzone->_varmax(n_var));
 		}
 	}
+	/* Data */
 	if (num_var) {
 		if (currentzone->datatype_point()) fatal_err("datatype should always be BLOCK for binary files");
 		if (!currentzone->_zonetype) {
@@ -3308,13 +3310,14 @@ int clTecplot::read_datasection(FILE *fileptr,clTecplot_zone *currentzone)
 			const int jdim=currentzone->get_jdim();
 			const int kdim=currentzone->get_kdim();
 			num_data=idim*jdim*kdim;
+			numbuffer=(int)((num_data-0.5)/READBUFFERSIZE)+1;
 		}
 		currentzone->allocate_data();
-		numbuffer=(int)((num_data-0.5)/READBUFFERSIZE)+1;
 		for (n_var=0; n_var<_num_var; n_var++) if (currentzone->get_varsharingzone(n_var)==-1) {
 			if (!currentzone->zonetype_ordered()) {
 				if (currentzone->get_varlocation(n_var)) num_data=currentzone->get_num_elem();
 				else num_data=currentzone->get_num_node();
+				numbuffer=(int)((num_data-0.5)/READBUFFERSIZE)+1;
 			}
 			dataptr=currentzone->get_datastartptr(n_var);
 			buffersize=READBUFFERSIZE;
