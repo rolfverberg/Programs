@@ -3435,15 +3435,12 @@ void clTecplot::write(const char* const filename,const int writezone,const clVec
 
 	currentzone=_firstzone;
 	for (n_zone=0; n_zone<_num_zone; n_zone++) {
-fprintf(stdout,"n_zone=%d writezone=%d\n",n_zone,writezone);
 		if (writezone>-1 && n_zone!=writezone) continue;
 		currentzone=_zones[n_zone];
 		if (!currentzone) 
 			fatal_err("currentzone not allocated in clTecplot::write");
 		writefloat=299.0;
 		if (!write(fileptr,writefloat)) fatal_err(3,filename);
-fprintf(stdout,"currentzone=%p\n",currentzone);
-writevar.write_ascii(stdout);
 		if (!write_datasection(fileptr,currentzone,writevar)) fatal_err(3,filename);
 	}
 
