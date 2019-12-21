@@ -599,7 +599,7 @@ class clTecplot
 
 		static const int LINE_LENGTH;
 		static const int NAME_LENGTH;
-		static const int READBUFFERSIZE;
+		static const int IOBUFFERSIZE;
 
 	private:
 

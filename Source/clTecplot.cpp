@@ -14,7 +14,7 @@ using clUtils_namespace::matrix;
 
 const int clTecplot::LINE_LENGTH=256;
 const int clTecplot::NAME_LENGTH=256;
-const int clTecplot::READBUFFERSIZE=1000;
+const int clTecplot::IOBUFFERSIZE=10000;
 
 static int read_bin_debug=0;
 
@@ -3243,13 +3243,13 @@ int clTecplot::read_datasection(FILE *fileptr,clTecplot_zone *currentzone)
 	using clUtils_namespace::read_binentry_int;
 
 	int *readintptr=NULL;
-	clVector_namespace::clVector<int> readintbuffer(READBUFFERSIZE);
+	clVector_namespace::clVector<int> readintbuffer(IOBUFFERSIZE);
 	clUtils_namespace::my_float readfloat;
 	clUtils_namespace::my_float *readfloatptr=NULL;
-	clVector_namespace::clVector<clUtils_namespace::my_float> readfloatbuffer(READBUFFERSIZE);
+	clVector_namespace::clVector<clUtils_namespace::my_float> readfloatbuffer(IOBUFFERSIZE);
 	clUtils_namespace::my_double readdouble;
 	clUtils_namespace::my_double *readdoubleptr=NULL;
-	clVector_namespace::clVector<clUtils_namespace::my_double> readdoublebuffer(READBUFFERSIZE);
+	clVector_namespace::clVector<clUtils_namespace::my_double> readdoublebuffer(IOBUFFERSIZE);
 
 	int idummy,n,n_var,num_var,n_data,num_data,nbuffer,numbuffer,buffersize;
 	int *connptr=NULL;
@@ -3310,19 +3310,19 @@ int clTecplot::read_datasection(FILE *fileptr,clTecplot_zone *currentzone)
 			const int jdim=currentzone->get_jdim();
 			const int kdim=currentzone->get_kdim();
 			num_data=idim*jdim*kdim;
-			numbuffer=(int)((num_data-0.5)/READBUFFERSIZE)+1;
+			numbuffer=(int)((num_data-0.5)/IOBUFFERSIZE)+1;
 		}
 		currentzone->allocate_data();
 		for (n_var=0; n_var<_num_var; n_var++) if (currentzone->get_varsharingzone(n_var)==-1) {
 			if (!currentzone->zonetype_ordered()) {
 				if (currentzone->get_varlocation(n_var)) num_data=currentzone->get_num_elem();
 				else num_data=currentzone->get_num_node();
-				numbuffer=(int)((num_data-0.5)/READBUFFERSIZE)+1;
+				numbuffer=(int)((num_data-0.5)/IOBUFFERSIZE)+1;
 			}
 			dataptr=currentzone->get_datastartptr(n_var);
-			buffersize=READBUFFERSIZE;
+			buffersize=IOBUFFERSIZE;
 			for (nbuffer=0; nbuffer<numbuffer; nbuffer++) {
-				if (nbuffer==numbuffer-1) buffersize=num_data-nbuffer*READBUFFERSIZE;
+				if (nbuffer==numbuffer-1) buffersize=num_data-nbuffer*IOBUFFERSIZE;
 				if (dataformat(n_var)==1) {
 					if (!read_binarray(fileptr,readfloatbuffer.get_startptr(),buffersize)) return 0;
 					readfloatptr=readfloatbuffer.get_startptr();
@@ -3345,10 +3345,10 @@ int clTecplot::read_datasection(FILE *fileptr,clTecplot_zone *currentzone)
 		conn->allocate(num_elem,num_conn);
 		connptr=conn->get_startptr();
 		num_data=num_elem*num_conn;
-		numbuffer=(int)((num_data-0.5)/READBUFFERSIZE)+1;
-		buffersize=READBUFFERSIZE;
+		numbuffer=(int)((num_data-0.5)/IOBUFFERSIZE)+1;
+		buffersize=IOBUFFERSIZE;
 		for (nbuffer=0; nbuffer<numbuffer; nbuffer++) {
-			if (nbuffer==numbuffer-1) buffersize=num_data-nbuffer*READBUFFERSIZE;
+			if (nbuffer==numbuffer-1) buffersize=num_data-nbuffer*IOBUFFERSIZE;
 			if (!read_binentry_int(fileptr,readintbuffer.get_startptr(),buffersize)) return 0;
 			readintptr=readintbuffer.get_startptr();
 			for (n=0; n<buffersize; n++) (*connptr++)=(int)(*readintptr++);
@@ -3435,12 +3435,15 @@ void clTecplot::write(const char* const filename,const int writezone,const clVec
 
 	currentzone=_firstzone;
 	for (n_zone=0; n_zone<_num_zone; n_zone++) {
+fprintf(stdout,"n_zone=%d writezone=%d\n",n_zone,writezone);
 		if (writezone>-1 && n_zone!=writezone) continue;
 		currentzone=_zones[n_zone];
 		if (!currentzone) 
 			fatal_err("currentzone not allocated in clTecplot::write");
 		writefloat=299.0;
 		if (!write(fileptr,writefloat)) fatal_err(3,filename);
+fprintf(stdout,"currentzone=%p\n",currentzone);
+writevar.write_ascii(stdout);
 		if (!write_datasection(fileptr,currentzone,writevar)) fatal_err(3,filename);
 	}
 
@@ -3651,14 +3654,14 @@ int clTecplot::write_datasection(FILE *fileptr,clTecplot_zone* const currentzone
 
 	clUtils_namespace::my_int writeint;
 	clUtils_namespace::my_int *writeintptr=NULL;
-	clVector_namespace::clVector<int> writeintbuffer(READBUFFERSIZE);
+	clVector_namespace::clVector<int> writeintbuffer(IOBUFFERSIZE);
 	clUtils_namespace::my_double writedouble;
 	clUtils_namespace::my_double *writedoubleptr=NULL;
-	clVector_namespace::clVector<clUtils_namespace::my_double> writedoublebuffer(READBUFFERSIZE);
+	clVector_namespace::clVector<clUtils_namespace::my_double> writedoublebuffer(IOBUFFERSIZE);
 
 	int n,n_var,num_var,num_varsharing,n_data,num_data,nbuffer,numbuffer,buffersize;
-	int *connptr=NULL;
-	double *dataptr=NULL;
+	const int *connptr=NULL;
+	const double *dataptr=NULL;
 
 	num_var=0;
 	for (n_var=0; n_var<_num_var; n_var++) if (writevar(n_var)) num_var++;
@@ -3707,18 +3710,19 @@ int clTecplot::write_datasection(FILE *fileptr,clTecplot_zone* const currentzone
 			const int jdim=currentzone->get_jdim();
 			const int kdim=currentzone->get_kdim();
 			num_data=idim*jdim*kdim;
+			numbuffer=(int)((num_data-0.5)/IOBUFFERSIZE)+1;
 		}
-		numbuffer=(int)((num_data-0.5)/READBUFFERSIZE)+1;
 		for (n_var=0; n_var<_num_var; n_var++) if (writevar(n_var)) {
 			if (!num_varsharing || currentzone->get_varsharingzone(n_var)==-1) {
 				if (!currentzone->zonetype_ordered()) {
 					if (currentzone->get_varlocation(n_var)) num_data=currentzone->get_num_elem();
 					else num_data=currentzone->get_num_node();
+					numbuffer=(int)((num_data-0.5)/IOBUFFERSIZE)+1;
 				}
 				dataptr=currentzone->get_datastartptr(n_var);
-				buffersize=READBUFFERSIZE;
+				buffersize=IOBUFFERSIZE;
 				for (nbuffer=0; nbuffer<numbuffer; nbuffer++) {
-					if (nbuffer==numbuffer-1) buffersize=num_data-nbuffer*READBUFFERSIZE;
+					if (nbuffer==numbuffer-1) buffersize=num_data-nbuffer*IOBUFFERSIZE;
 					writedoubleptr=writedoublebuffer.get_startptr();
 					for (n=0; n<buffersize; n++) (*writedoubleptr++)=(*dataptr++);
 					if (!write(fileptr,writedoublebuffer.get_startptr(),buffersize)) return 0;
@@ -3733,10 +3737,10 @@ int clTecplot::write_datasection(FILE *fileptr,clTecplot_zone* const currentzone
 		int num_conn=currentzone->get_num_conn();
 		connptr=currentzone->get_connstartptr();
 		num_data=num_elem*num_conn;
-		numbuffer=(int)((num_data-0.5)/READBUFFERSIZE)+1;
-		buffersize=READBUFFERSIZE;
+		numbuffer=(int)((num_data-0.5)/IOBUFFERSIZE)+1;
+		buffersize=IOBUFFERSIZE;
 		for (nbuffer=0; nbuffer<numbuffer; nbuffer++) {
-			if (nbuffer==numbuffer-1) buffersize=num_data-nbuffer*READBUFFERSIZE;
+			if (nbuffer==numbuffer-1) buffersize=num_data-nbuffer*IOBUFFERSIZE;
 			writeintptr=writeintbuffer.get_startptr();
 			for (n=0; n<buffersize; n++) (*writeintptr++)=(*connptr++);
 			if (!write(fileptr,writeintbuffer.get_startptr(),buffersize)) return 0;
